@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AI-Assisted ECG Screening System</title>
+  <meta name="description" content="Educational and research prototype for ECG signal screening.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="warning">
+    <strong>Educational/Research Prototype — Not a Clinical Diagnostic Device.</strong>
+    This website is for demonstration, learning and research only. It must not be used for diagnosis, treatment or medical decisions.
+  </div>
+
+  <header class="header">
+    <div class="brand">
+      <div class="pulse">⌁</div>
+      <div>
+        <h1>AI-Assisted ECG Screening System</h1>
+        <p>Signal visualization • preprocessing • feature extraction • screening prototype</p>
+      </div>
+    </div>
+    <div id="statusPill" class="pill neutral">No ECG loaded</div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div>
+        <span class="eyebrow">CARDIO AI</span>
+        <h2>ECG screening, presented clearly.</h2>
+        <p>Upload an ECG CSV or use the built-in demo signal. The browser validates the data, displays the waveform and calculates transparent signal-level features.</p>
+      </div>
+      <div class="hero-card">
+        <span>Prototype mode</span>
+        <strong>Research / Education</strong>
+        <small>No clinical diagnosis is produced.</small>
+      </div>
+    </section>
+
+    <section class="card upload-card">
+      <div class="section-head">
+        <div>
+          <h3>1. ECG Data Input</h3>
+          <p>Supported CSV formats: <code>time,amplitude</code> or a single <code>amplitude</code> column.</p>
+        </div>
+        <div class="actions">
+          <button id="demoBtn" class="secondary">Try Demo ECG</button>
+          <button id="clearBtn" class="ghost">Clear</button>
+        </div>
+      </div>
+
+      <label id="dropzone" class="dropzone" tabindex="0">
+        <input id="fileInput" type="file" accept=".csv,text/csv" hidden>
+        <div class="upload-icon">↥</div>
+        <strong>Drop an ECG CSV here</strong>
+        <span>or tap to choose a file</span>
+      </label>
+
+      <div id="message" class="message hidden"></div>
+
+      <div class="meta-grid">
+        <div><span>File</span><strong id="filename">—</strong></div>
+        <div><span>Samples</span><strong id="samples">—</strong></div>
+        <div><span>Duration</span><strong id="duration">—</strong></div>
+        <div><span>Sampling rate</span><strong id="samplingRate">—</strong></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <div>
+          <h3>2. ECG Waveform</h3>
+          <p id="waveNote">Load an ECG to display the signal.</p>
+        </div>
+        <span id="demoTag" class="tag hidden">DEMO ECG</span>
+      </div>
+      <div class="plot-wrap">
+        <canvas id="waveform"></canvas>
+        <div id="plotEmpty" class="plot-empty">ECG waveform will appear here</div>
+      </div>
+    </section>
+
+    <section class="grid-2">
+      <section class="card">
+        <div class="section-head">
+          <div>
+            <h3>3. Signal Features</h3>
+            <p>Computed from the loaded waveform; unavailable values remain unavailable.</p>
+          </div>
+        </div>
+        <div class="feature-grid">
+          <div><span>Mean</span><strong id="fMean">—</strong></div>
+          <div><span>Std. deviation</span><strong id="fStd">—</strong></div>
+          <div><span>Minimum</span><strong id="fMin">—</strong></div>
+          <div><span>Maximum</span><strong id="fMax">—</strong></div>
+          <div><span>Range</span><strong id="fRange">—</strong></div>
+          <div><span>RMS</span><strong id="fRms">—</strong></div>
+          <div><span>Estimated R-peaks</span><strong id="fPeaks">—</strong></div>
+          <div><span>Estimated heart rate</span><strong id="fHr">—</strong></div>
+        </div>
+        <div id="quality" class="quality neutral">Signal quality: —</div>
+      </section>
+
+      <section class="card result-card">
+        <div class="section-head">
+          <div>
+            <h3>4. Screening Output</h3>
+            <p>Prototype output only — not a medical diagnosis.</p>
+          </div>
+          <span id="resultBadge" class="tag neutral">WAITING</span>
+        </div>
+        <div id="resultTitle" class="result-title">No ECG analyzed</div>
+        <p id="resultText">Upload a file or load the demo ECG to begin.</p>
+        <div class="result-box">
+          <span>ML model status</span>
+          <strong id="modelStatus">Frontend demo mode</strong>
+        </div>
+        <p class="small">A genuine NORMAL/ABNORMAL ML result is shown only when a trained model is connected through the FastAPI backend. This standalone GitHub Pages version never invents a model prediction.</p>
+      </section>
+    </section>
+
+    <section class="card pipeline">
+      <div class="section-head">
+        <div>
+          <h3>Prototype Pipeline</h3>
+          <p>ECG input → validation → visualization → signal features → optional trained ML screening</p>
+        </div>
+      </div>
+      <div class="steps">
+        <span>01 Data input</span><span>02 Validation</span><span>03 Waveform</span><span>04 Features</span><span>05 ML screening*</span>
+      </div>
+      <p class="small">*ML screening requires the separately trained model artifacts and FastAPI service. No external medical API is required.</p>
+    </section>
+
+    <footer>
+      <strong>AI-Assisted ECG Screening System</strong>
+      <span>Educational/research prototype • Not for clinical use</span>
+    </footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
