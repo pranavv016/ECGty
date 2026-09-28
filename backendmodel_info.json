@@ -1,0 +1,15 @@
+{
+  "model": "Random Forest",
+  "n_estimators": 150,
+  "classes": {
+    "0": "Normal",
+    "1": "Supraventricular",
+    "2": "Ventricular",
+    "3": "Fusion",
+    "4": "Unknown"
+  },
+  "input_samples_per_beat": 187,
+  "test_accuracy": 0.9731396464300397,
+  "macro_f1": 0.86,
+  "note": "Educational/research screening prototype. Not a clinical diagnostic device."
+}
