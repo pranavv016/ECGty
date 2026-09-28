@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const DEMO_PATH = "data/sample_ecg.csv";
+  const DEMO_PATH = "sample_ecg.csv";
   const MIN_SAMPLES = 10;
   let signal = null;
 
