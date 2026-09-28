@@ -8,9 +8,12 @@
   const API_BASE = "https://ecgty.onrender.com";
   const DEMO_PATH = "./sample_ecg.csv";
 
-  // Your Random Forest backend requires 187 samples
   const MODEL_MIN_SAMPLES = 187;
   const MIN_SAMPLES = 10;
+
+  // Sampling rate intentionally defined for the
+  // synthetic built-in DEMO ECG only.
+  const DEMO_SAMPLING_RATE = 360;
 
   let signal = null;
   let analysisToken = 0;
@@ -58,7 +61,7 @@
   };
 
   // =========================================================
-  // CHECK PAGE ELEMENTS
+  // CHECK HTML
   // =========================================================
 
   const required = [
@@ -91,14 +94,20 @@
     "modelStatus"
   ];
 
-  const missing = required.filter((key) => !els[key]);
+  const missing =
+    required.filter(
+      (key) => !els[key]
+    );
 
   if (missing.length > 0) {
-    console.error("Missing HTML elements:", missing);
+
+    console.error(
+      "Missing HTML elements:",
+      missing
+    );
 
     alert(
-      "ECG website error: some page elements are missing.\n\n" +
-      "Missing: " +
+      "ECG website error.\n\nMissing: " +
       missing.join(", ")
     );
 
@@ -106,30 +115,37 @@
   }
 
   // =========================================================
-  // BASIC HELPERS
+  // HELPERS
   // =========================================================
 
   function showError(message) {
-    els.message.textContent = message;
-    els.message.classList.remove("hidden");
+
+    els.message.textContent =
+      message;
+
+    els.message.classList.remove(
+      "hidden"
+    );
   }
 
   function clearError() {
-    els.message.textContent = "";
-    els.message.classList.add("hidden");
+
+    els.message.textContent =
+      "";
+
+    els.message.classList.add(
+      "hidden"
+    );
   }
 
-  function fmt(value, decimals = 3) {
+  function fmt(
+    value,
+    decimals = 3
+  ) {
+
     return Number.isFinite(value)
       ? Number(value).toFixed(decimals)
       : "—";
-  }
-
-  function setText(element, value) {
-    element.textContent =
-      value === null || value === undefined
-        ? "—"
-        : value;
   }
 
   // =========================================================
@@ -138,38 +154,47 @@
 
   function parseCsv(text) {
 
-    text = String(text || "")
-      .replace(/^\uFEFF/, "")
-      .trim();
+    text =
+      String(text || "")
+        .replace(/^\uFEFF/, "")
+        .trim();
 
     if (!text) {
+
       throw new Error(
         "The ECG CSV file is empty."
       );
     }
 
-    const lines = text
-      .split(/\r?\n/)
-      .map((line, index) => ({
-        text: line.trim(),
-        number: index + 1
-      }))
-      .filter((row) =>
-        row.text &&
-        !row.text.startsWith("#")
-      );
+    const lines =
+      text
+        .split(/\r?\n/)
+        .map(
+          (line, index) => ({
+            text: line.trim(),
+            number: index + 1
+          })
+        )
+        .filter(
+          (row) =>
+            row.text &&
+            !row.text.startsWith("#")
+        );
 
     if (lines.length < 2) {
+
       throw new Error(
         "The ECG CSV does not contain enough data."
       );
     }
 
-    const header = lines[0].text
-      .split(",")
-      .map((x) =>
-        x.trim().toLowerCase()
-      );
+    const header =
+      lines[0].text
+        .split(",")
+        .map(
+          (x) =>
+            x.trim().toLowerCase()
+        );
 
     const hasTime =
       header.length === 2 &&
@@ -180,26 +205,33 @@
       header.length === 1 &&
       header[0] === "amplitude";
 
-    if (!hasTime && !amplitudeOnly) {
+    if (
+      !hasTime &&
+      !amplitudeOnly
+    ) {
+
       throw new Error(
-        'Unsupported CSV format.\n\n' +
-        'Use either:\n' +
-        'time,amplitude\n' +
-        '0.00,0.12\n\n' +
-        'or:\n' +
-        'amplitude\n' +
-        '0.12'
+        'Unsupported CSV format. Use "time,amplitude" or "amplitude".'
       );
     }
 
     const samples = [];
-    const time = hasTime ? [] : null;
 
-    for (const row of lines.slice(1)) {
+    const time =
+      hasTime
+        ? []
+        : null;
 
-      const parts = row.text
-        .split(",")
-        .map((x) => x.trim());
+    for (
+      const row of lines.slice(1)
+    ) {
+
+      const parts =
+        row.text
+          .split(",")
+          .map(
+            (x) => x.trim()
+          );
 
       if (hasTime) {
 
@@ -208,18 +240,23 @@
           parts[0] === "" ||
           parts[1] === ""
         ) {
+
           throw new Error(
             `Line ${row.number}: expected time and amplitude values.`
           );
         }
 
-        const t = Number(parts[0]);
-        const a = Number(parts[1]);
+        const t =
+          Number(parts[0]);
+
+        const a =
+          Number(parts[1]);
 
         if (
           !Number.isFinite(t) ||
           !Number.isFinite(a)
         ) {
+
           throw new Error(
             `Line ${row.number}: invalid numeric value.`
           );
@@ -234,14 +271,19 @@
           parts.length !== 1 ||
           parts[0] === ""
         ) {
+
           throw new Error(
             `Line ${row.number}: expected one amplitude value.`
           );
         }
 
-        const a = Number(parts[0]);
+        const a =
+          Number(parts[0]);
 
-        if (!Number.isFinite(a)) {
+        if (
+          !Number.isFinite(a)
+        ) {
+
           throw new Error(
             `Line ${row.number}: amplitude must be a valid number.`
           );
@@ -251,7 +293,10 @@
       }
     }
 
-    if (samples.length < MIN_SAMPLES) {
+    if (
+      samples.length < MIN_SAMPLES
+    ) {
+
       throw new Error(
         `Insufficient ECG data. Only ${samples.length} samples were found.`
       );
@@ -266,9 +311,16 @@
 
     if (time) {
 
-      for (let i = 1; i < time.length; i++) {
+      for (
+        let i = 1;
+        i < time.length;
+        i++
+      ) {
 
-        if (!(time[i] > time[i - 1])) {
+        if (
+          !(time[i] > time[i - 1])
+        ) {
+
           throw new Error(
             "Time values must be strictly increasing."
           );
@@ -280,6 +332,7 @@
         time[0];
 
       if (!(duration > 0)) {
+
         throw new Error(
           "The time column does not contain a valid duration."
         );
@@ -287,36 +340,46 @@
 
       const intervals = [];
 
-      for (let i = 1; i < time.length; i++) {
+      for (
+        let i = 1;
+        i < time.length;
+        i++
+      ) {
+
         intervals.push(
-          time[i] - time[i - 1]
+          time[i] -
+          time[i - 1]
         );
       }
 
       const meanInterval =
         intervals.reduce(
-          (sum, value) => sum + value,
+          (sum, value) =>
+            sum + value,
           0
-        ) / intervals.length;
+        ) /
+        intervals.length;
 
       const maxDeviation =
         Math.max(
           ...intervals.map(
             (value) =>
               Math.abs(
-                value - meanInterval
-              ) / meanInterval
+                value -
+                meanInterval
+              ) /
+              meanInterval
           )
         );
 
-      // Only report sampling rate if time intervals
-      // are sufficiently uniform.
       if (
         meanInterval > 0 &&
         maxDeviation <= 0.001
       ) {
+
         samplingRate =
-          1 / meanInterval;
+          1 /
+          meanInterval;
       }
     }
 
@@ -329,34 +392,49 @@
   }
 
   // =========================================================
-  // BUILT-IN DEMO ECG
-  //
-  // This is only a synthetic demonstration signal.
-  // It is NOT patient data.
+  // BUILT-IN SYNTHETIC DEMO ECG
   // =========================================================
 
   function createBuiltInDemo() {
 
     const n = 187;
+
+    const fs =
+      DEMO_SAMPLING_RATE;
+
     const samples = [];
 
-    for (let i = 0; i < n; i++) {
+    const time = [];
+
+    for (
+      let i = 0;
+      i < n;
+      i++
+    ) {
+
+      // Known synthetic time axis
+      time.push(
+        i / fs
+      );
 
       const phase =
         (i % 62) / 62;
 
       let value =
-        0.02 *
+        0.015 *
         Math.sin(
-          phase * Math.PI * 2
+          phase *
+          Math.PI *
+          2
         );
 
-      // P-wave
+      // P wave
       value +=
         0.08 *
         Math.exp(
           -Math.pow(
-            (phase - 0.20) / 0.055,
+            (phase - 0.20) /
+            0.055,
             2
           )
         );
@@ -366,7 +444,8 @@
         0.12 *
         Math.exp(
           -Math.pow(
-            (phase - 0.36) / 0.018,
+            (phase - 0.36) /
+            0.018,
             2
           )
         );
@@ -376,7 +455,8 @@
         0.95 *
         Math.exp(
           -Math.pow(
-            (phase - 0.40) / 0.018,
+            (phase - 0.40) /
+            0.018,
             2
           )
         );
@@ -386,7 +466,8 @@
         0.25 *
         Math.exp(
           -Math.pow(
-            (phase - 0.44) / 0.025,
+            (phase - 0.44) /
+            0.025,
             2
           )
         );
@@ -396,7 +477,8 @@
         0.22 *
         Math.exp(
           -Math.pow(
-            (phase - 0.68) / 0.09,
+            (phase - 0.68) /
+            0.09,
             2
           )
         );
@@ -406,19 +488,23 @@
 
     return {
       samples,
-      time: null,
-      duration: null,
-      fs: null
+      time,
+      duration:
+        time[n - 1] -
+        time[0],
+      fs
     };
   }
 
   // =========================================================
-  // LOAD DEMO ECG
+  // LOAD DEMO
   // =========================================================
 
   async function loadDemo() {
 
-    console.log("Try Demo ECG clicked");
+    console.log(
+      "Try Demo ECG clicked"
+    );
 
     clearError();
 
@@ -438,21 +524,21 @@
       "Loading demo ECG...";
 
     els.resultText.textContent =
-      "Preparing the built-in demonstration signal.";
+      "Preparing the synthetic demonstration signal.";
 
     els.modelStatus.textContent =
       "Loading demo signal...";
 
     try {
 
-      // First try the actual CSV from GitHub Pages.
       const response =
         await fetch(
           DEMO_PATH +
           "?v=" +
           Date.now(),
           {
-            cache: "no-store"
+            cache:
+              "no-store"
           }
         );
 
@@ -471,7 +557,8 @@
             {
               filename:
                 "sample_ecg.csv",
-              demo: true
+              demo:
+                true
             }
           );
 
@@ -486,13 +573,9 @@
     } catch (error) {
 
       console.warn(
-        "CSV demo could not be loaded. Using built-in demo.",
+        "CSV demo unavailable. Using built-in synthetic demo.",
         error
       );
-
-      // IMPORTANT:
-      // Do NOT leave the user with a blank screen.
-      // Use the built-in synthetic demo instead.
 
       const demo =
         createBuiltInDemo();
@@ -501,8 +584,9 @@
         demo,
         {
           filename:
-            "Built-in Demo ECG",
-          demo: true
+            "Built-in Synthetic Demo ECG",
+          demo:
+            true
         }
       );
     }
@@ -512,19 +596,33 @@
   // LOAD SIGNAL
   // =========================================================
 
-  function loadSignal(parsed, meta) {
+  function loadSignal(
+    parsed,
+    meta
+  ) {
 
     clearError();
 
     analysisToken++;
 
     signal = {
-      samples: parsed.samples,
-      time: parsed.time,
-      duration: parsed.duration,
-      fs: parsed.fs,
-      filename: meta.filename,
-      demo: meta.demo
+      samples:
+        parsed.samples,
+
+      time:
+        parsed.time,
+
+      duration:
+        parsed.duration,
+
+      fs:
+        parsed.fs,
+
+      filename:
+        meta.filename,
+
+      demo:
+        meta.demo
     };
 
     // =======================================================
@@ -533,20 +631,30 @@
 
     els.filename.textContent =
       meta.demo
-        ? "DEMO ECG • " + meta.filename
+        ? "DEMO ECG • " +
+          meta.filename
         : meta.filename;
 
     els.samples.textContent =
-      parsed.samples.length.toLocaleString();
+      parsed.samples.length
+        .toLocaleString();
 
     els.duration.textContent =
       parsed.duration !== null
-        ? fmt(parsed.duration, 3) + " s"
+        ? fmt(
+            parsed.duration,
+            3
+          ) +
+          " s"
         : "Not available";
 
     els.samplingRate.textContent =
       parsed.fs !== null
-        ? fmt(parsed.fs, 2) + " Hz"
+        ? fmt(
+            parsed.fs,
+            2
+          ) +
+          " Hz"
         : "Not determinable";
 
     // =======================================================
@@ -568,7 +676,7 @@
 
     els.waveNote.textContent =
       meta.demo
-        ? "DEMO ECG waveform • synthetic/research demonstration"
+        ? "DEMO ECG waveform • synthetic demonstration"
         : "Uploaded ECG waveform";
 
     els.plotEmpty.classList.add(
@@ -594,7 +702,7 @@
     );
 
     // =======================================================
-    // MODEL REQUIREMENT
+    // MODEL INPUT
     // =======================================================
 
     if (
@@ -622,17 +730,19 @@
     }
 
     // =======================================================
-    // RUN ML
+    // ML ANALYSIS
     // =======================================================
 
     classifySignal(signal);
   }
 
   // =========================================================
-  // SEND ECG TO FASTAPI
+  // FASTAPI MODEL
   // =========================================================
 
-  async function classifySignal(currentSignal) {
+  async function classifySignal(
+    currentSignal
+  ) {
 
     const token =
       ++analysisToken;
@@ -647,7 +757,7 @@
       "Running ECG screening model...";
 
     els.resultText.textContent =
-      "Connecting to the deployed FastAPI Random Forest model.";
+      "Sending the ECG signal to the FastAPI Random Forest model.";
 
     els.modelStatus.textContent =
       "Connecting to FastAPI...";
@@ -659,29 +769,34 @@
           API_BASE +
           "/api/predict",
           {
-            method: "POST",
+            method:
+              "POST",
 
             headers: {
               "Content-Type":
                 "application/json"
             },
 
-            body: JSON.stringify({
-              samples:
-                currentSignal.samples,
+            body:
+              JSON.stringify({
+                samples:
+                  currentSignal.samples,
 
-              filename:
-                currentSignal.filename
-            })
+                filename:
+                  currentSignal.filename
+              })
           }
         );
 
       let data = null;
 
       try {
+
         data =
           await response.json();
+
       } catch (_) {
+
         data = null;
       }
 
@@ -693,7 +808,6 @@
         );
       }
 
-      // Ignore old requests
       if (
         token !== analysisToken ||
         signal !== currentSignal
@@ -708,11 +822,12 @@
         );
 
       const isNormal =
-        prediction.toLowerCase() ===
+        prediction
+          .toLowerCase() ===
         "normal";
 
       // =====================================================
-      // DISPLAY NORMAL / ABNORMAL
+      // RESULT
       // =====================================================
 
       if (isNormal) {
@@ -746,19 +861,20 @@
         els.resultText.textContent =
           "The connected Random Forest model classified " +
           `this ECG heartbeat as ${prediction}. ` +
-          "For this prototype, this is displayed as " +
+          "For this prototype, it is displayed as " +
           "ABNORMAL / NON-NORMAL. " +
           "This is an educational/research screening result, " +
           "not a clinical diagnosis.";
       }
 
       // =====================================================
-      // PROBABILITY
+      // MODEL CONFIDENCE
       // =====================================================
 
       if (
         data?.probabilities &&
-        typeof data.probabilities === "object"
+        typeof data.probabilities ===
+          "object"
       ) {
 
         const entries =
@@ -771,13 +887,19 @@
               Number(a[1])
           );
 
-        if (entries.length > 0) {
+        if (
+          entries.length > 0
+        ) {
 
           const probability =
-            Number(entries[0][1]);
+            Number(
+              entries[0][1]
+            );
 
           if (
-            Number.isFinite(probability)
+            Number.isFinite(
+              probability
+            )
           ) {
 
             els.resultText.textContent +=
@@ -790,7 +912,7 @@
         "FastAPI connected • Random Forest model loaded";
 
       console.log(
-        "ECG prediction response:",
+        "ECG prediction:",
         data
       );
 
@@ -820,7 +942,6 @@
       els.resultText.textContent =
         "The ECG waveform was loaded successfully, " +
         "but the FastAPI model could not be reached. " +
-        "The waveform and features are still available. " +
         "Error: " +
         error.message;
 
@@ -830,12 +951,16 @@
   }
 
   // =========================================================
-  // SIGNAL FEATURES
+  // FEATURES
   // =========================================================
 
-  function calculateFeatures(x, fs) {
+  function calculateFeatures(
+    x,
+    fs
+  ) {
 
-    const n = x.length;
+    const n =
+      x.length;
 
     const mean =
       x.reduce(
@@ -856,7 +981,9 @@
       ) / n;
 
     const std =
-      Math.sqrt(variance);
+      Math.sqrt(
+        variance
+      );
 
     const min =
       Math.min(...x);
@@ -895,8 +1022,14 @@
     els.fRms.textContent =
       fmt(rms);
 
-    // Sampling rate unavailable
-    if (!fs) {
+    // =======================================================
+    // SAMPLING RATE AVAILABLE
+    // =======================================================
+
+    if (
+      !Number.isFinite(fs) ||
+      fs <= 0
+    ) {
 
       els.fPeaks.textContent =
         "—";
@@ -912,6 +1045,10 @@
       return;
     }
 
+    // =======================================================
+    // R PEAKS
+    // =======================================================
+
     const peaks =
       findPeaks(
         x,
@@ -921,29 +1058,53 @@
     els.fPeaks.textContent =
       peaks.length;
 
-    if (peaks.length >= 2) {
+    // =======================================================
+    // HEART RATE
+    // =======================================================
+
+    if (
+      peaks.length >= 2
+    ) {
 
       const intervals =
         diff(peaks)
           .map(
             (d) =>
               d / fs
+          )
+          .filter(
+            (d) => d > 0
           );
 
-      const medianInterval =
-        median(intervals);
-
       if (
-        medianInterval > 0
+        intervals.length > 0
       ) {
 
-        els.fHr.textContent =
-          fmt(
+        const medianInterval =
+          median(
+            intervals
+          );
+
+        if (
+          medianInterval > 0
+        ) {
+
+          const heartRate =
             60 /
-            medianInterval,
-            1
-          ) +
-          " bpm";
+            medianInterval;
+
+          els.fHr.textContent =
+            fmt(
+              heartRate,
+              1
+            ) +
+            " bpm";
+
+        } else {
+
+          els.fHr.textContent =
+            "—";
+        }
 
       } else {
 
@@ -957,27 +1118,51 @@
         "—";
     }
 
-    setQuality(
-      "good",
-      "Signal quality: calculated from available signal data"
-    );
+    // =======================================================
+    // QUALITY
+    // =======================================================
+
+    if (
+      peaks.length >= 2
+    ) {
+
+      setQuality(
+        "good",
+        "Signal quality: good (heuristic)"
+      );
+
+    } else {
+
+      setQuality(
+        "neutral",
+        "Signal quality: undetermined"
+      );
+    }
   }
 
   // =========================================================
-  // PEAK DETECTION
+  // R-PEAK DETECTION
   // =========================================================
 
-  function findPeaks(x, fs) {
+  function findPeaks(
+    x,
+    fs
+  ) {
 
-    if (!x.length || !fs) {
+    if (
+      !x.length ||
+      !Number.isFinite(fs)
+    ) {
       return [];
     }
 
     const mean =
       x.reduce(
-        (a, b) => a + b,
+        (a, b) =>
+          a + b,
         0
-      ) / x.length;
+      ) /
+      x.length;
 
     const std =
       Math.sqrt(
@@ -989,13 +1174,17 @@
               2
             ),
           0
-        ) / x.length
+        ) /
+        x.length
       );
 
-    if (!std) {
+    if (
+      std <= 0
+    ) {
       return [];
     }
 
+    // Minimum distance between R peaks.
     const minDistance =
       Math.max(
         1,
@@ -1004,9 +1193,11 @@
         )
       );
 
+    // More suitable threshold for
+    // the synthetic demo.
     const threshold =
       mean +
-      0.8 * std;
+      0.6 * std;
 
     const peaks = [];
 
@@ -1017,26 +1208,41 @@
     ) {
 
       if (
-        x[i] > threshold &&
+        x[i] >= threshold &&
         x[i] >= x[i - 1] &&
         x[i] >= x[i + 1]
       ) {
 
         if (
-          peaks.length === 0 ||
-          i -
-          peaks[
-            peaks.length - 1
-          ] >= minDistance
+          peaks.length === 0
         ) {
 
           peaks.push(i);
+
+        } else {
+
+          const previous =
+            peaks[
+              peaks.length - 1
+            ];
+
+          if (
+            i - previous >=
+            minDistance
+          ) {
+
+            peaks.push(i);
+          }
         }
       }
     }
 
     return peaks;
   }
+
+  // =========================================================
+  // ARRAY HELPERS
+  // =========================================================
 
   function diff(array) {
 
@@ -1051,13 +1257,16 @@
 
   function median(array) {
 
-    if (!array.length) {
+    if (
+      !array.length
+    ) {
       return null;
     }
 
     const sorted =
       [...array].sort(
-        (a, b) => a - b
+        (a, b) =>
+          a - b
       );
 
     const middle =
@@ -1068,7 +1277,9 @@
     if (
       sorted.length % 2
     ) {
+
       return sorted[middle];
+
     }
 
     return (
@@ -1091,7 +1302,7 @@
   }
 
   // =========================================================
-  // DRAW ECG WAVEFORM
+  // WAVEFORM
   // =========================================================
 
   function drawWaveform(
@@ -1128,7 +1339,9 @@
       height * dpr;
 
     const ctx =
-      canvas.getContext("2d");
+      canvas.getContext(
+        "2d"
+      );
 
     ctx.setTransform(
       dpr,
@@ -1139,15 +1352,24 @@
       0
     );
 
-    const w = width;
-    const h = height;
+    const w =
+      width;
 
-    const padLeft = 45;
-    const padRight = 18;
-    const padTop = 18;
-    const padBottom = 28;
+    const h =
+      height;
 
-    // Background
+    const padLeft =
+      45;
+
+    const padRight =
+      18;
+
+    const padTop =
+      18;
+
+    const padBottom =
+      28;
+
     ctx.fillStyle =
       "#071923";
 
@@ -1159,24 +1381,29 @@
     );
 
     const min =
-      Math.min(...values);
+      Math.min(
+        ...values
+      );
 
     const max =
-      Math.max(...values);
+      Math.max(
+        ...values
+      );
 
     const range =
       max - min || 1;
 
-    // =======================================================
-    // GRID
-    // =======================================================
-
+    // Grid
     ctx.strokeStyle =
       "rgba(170,205,210,.13)";
 
     ctx.lineWidth = 1;
 
-    for (let i = 0; i < 7; i++) {
+    for (
+      let i = 0;
+      i < 7;
+      i++
+    ) {
 
       const y =
         padTop +
@@ -1203,7 +1430,11 @@
       ctx.stroke();
     }
 
-    for (let i = 0; i < 9; i++) {
+    for (
+      let i = 0;
+      i < 9;
+      i++
+    ) {
 
       const xx =
         padLeft +
@@ -1230,14 +1461,12 @@
       ctx.stroke();
     }
 
-    // =======================================================
-    // ECG LINE
-    // =======================================================
-
+    // ECG
     ctx.strokeStyle =
       "#5de1d6";
 
-    ctx.lineWidth = 1.8;
+    ctx.lineWidth =
+      1.8;
 
     ctx.beginPath();
 
@@ -1272,12 +1501,17 @@
             range
           );
 
-        if (index === 0) {
+        if (
+          index === 0
+        ) {
+
           ctx.moveTo(
             x,
             y
           );
+
         } else {
+
           ctx.lineTo(
             x,
             y
@@ -1288,10 +1522,7 @@
 
     ctx.stroke();
 
-    // =======================================================
-    // AXIS LABELS
-    // =======================================================
-
+    // Labels
     ctx.fillStyle =
       "#9fb8c0";
 
@@ -1313,7 +1544,10 @@
     if (time) {
 
       ctx.fillText(
-        fmt(time[0], 2) +
+        fmt(
+          time[0],
+          2
+        ) +
         " s",
         padLeft,
         h - 8
@@ -1334,7 +1568,7 @@
   }
 
   // =========================================================
-  // CLEAR ECG
+  // CLEAR
   // =========================================================
 
   function clearSignal() {
@@ -1366,7 +1600,8 @@
       els.fHr
     ].forEach(
       (element) => {
-        element.textContent = "—";
+        element.textContent =
+          "—";
       }
     );
 
@@ -1379,21 +1614,6 @@
 
     els.plotEmpty.classList.remove(
       "hidden"
-    );
-
-    const ctx =
-      els.waveform.getContext(
-        "2d"
-      );
-
-    const rect =
-      els.waveform.getBoundingClientRect();
-
-    ctx.clearRect(
-      0,
-      0,
-      rect.width,
-      rect.height
     );
 
     els.resultBadge.textContent =
@@ -1416,12 +1636,27 @@
       "Signal quality: —"
     );
 
-    els.fileInput.value = "";
+    els.fileInput.value =
+      "";
   }
 
   // =========================================================
   // FILE UPLOAD
   // =========================================================
+
+  els.fileInput.addEventListener(
+    "change",
+    (event) => {
+
+      const file =
+        event.target.files &&
+        event.target.files[0];
+
+      if (file) {
+        readFile(file);
+      }
+    }
+  );
 
   function readFile(file) {
 
@@ -1440,7 +1675,9 @@
       return;
     }
 
-    if (file.size === 0) {
+    if (
+      file.size === 0
+    ) {
 
       showError(
         "The selected ECG file is empty."
@@ -1458,50 +1695,55 @@
     const reader =
       new FileReader();
 
-    reader.onload = () => {
+    reader.onload =
+      () => {
 
-      try {
+        try {
 
-        const parsed =
-          parseCsv(
-            reader.result
+          const parsed =
+            parseCsv(
+              reader.result
+            );
+
+          loadSignal(
+            parsed,
+            {
+              filename:
+                file.name,
+
+              demo:
+                false
+            }
           );
 
-        loadSignal(
-          parsed,
-          {
-            filename:
-              file.name,
-            demo:
-              false
-          }
-        );
+        } catch (error) {
 
-      } catch (error) {
+          console.error(
+            "CSV error:",
+            error
+          );
 
-        console.error(
-          "CSV error:",
-          error
-        );
+          showError(
+            error.message
+          );
+        }
+      };
+
+    reader.onerror =
+      () => {
 
         showError(
-          error.message
+          "The ECG CSV file could not be read."
         );
-      }
-    };
+      };
 
-    reader.onerror = () => {
-
-      showError(
-        "The ECG CSV file could not be read."
-      );
-    };
-
-    reader.readAsText(file);
+    reader.readAsText(
+      file
+    );
   }
 
   // =========================================================
-  // BUTTONS
+  // DEMO BUTTON
   // =========================================================
 
   els.demoBtn.addEventListener(
@@ -1510,13 +1752,13 @@
 
       event.preventDefault();
 
-      console.log(
-        "DEMO BUTTON PRESSED"
-      );
-
       loadDemo();
     }
   );
+
+  // =========================================================
+  // CLEAR BUTTON
+  // =========================================================
 
   els.clearBtn.addEventListener(
     "click",
@@ -1525,24 +1767,6 @@
       event.preventDefault();
 
       clearSignal();
-    }
-  );
-
-  // =========================================================
-  // FILE INPUT
-  // =========================================================
-
-  els.fileInput.addEventListener(
-    "change",
-    (event) => {
-
-      const file =
-        event.target.files &&
-        event.target.files[0];
-
-      if (file) {
-        readFile(file);
-      }
     }
   );
 
@@ -1573,41 +1797,45 @@
     }
   );
 
-  ["dragenter", "dragover"]
-    .forEach(
-      (eventName) => {
+  [
+    "dragenter",
+    "dragover"
+  ].forEach(
+    (eventName) => {
 
-        els.dropzone.addEventListener(
-          eventName,
-          (event) => {
+      els.dropzone.addEventListener(
+        eventName,
+        (event) => {
 
-            event.preventDefault();
+          event.preventDefault();
 
-            els.dropzone.classList.add(
-              "focus"
-            );
-          }
-        );
-      }
-    );
+          els.dropzone.classList.add(
+            "focus"
+          );
+        }
+      );
+    }
+  );
 
-  ["dragleave", "drop"]
-    .forEach(
-      (eventName) => {
+  [
+    "dragleave",
+    "drop"
+  ].forEach(
+    (eventName) => {
 
-        els.dropzone.addEventListener(
-          eventName,
-          (event) => {
+      els.dropzone.addEventListener(
+        eventName,
+        (event) => {
 
-            event.preventDefault();
+          event.preventDefault();
 
-            els.dropzone.classList.remove(
-              "focus"
-            );
-          }
-        );
-      }
-    );
+          els.dropzone.classList.remove(
+            "focus"
+          );
+        }
+      );
+    }
+  );
 
   els.dropzone.addEventListener(
     "drop",
@@ -1624,7 +1852,7 @@
   );
 
   // =========================================================
-  // WINDOW RESIZE
+  // RESIZE
   // =========================================================
 
   window.addEventListener(
@@ -1641,16 +1869,8 @@
     }
   );
 
-  // =========================================================
-  // INITIAL STATE
-  //
-  // IMPORTANT:
-  // Do NOT automatically call loadDemo().
-  // The user should press Try Demo ECG.
-  // =========================================================
-
   console.log(
-    "AI ECG Screening frontend loaded successfully."
+    "AI ECG Screening frontend loaded."
   );
 
 })();
