@@ -1578,6 +1578,21 @@
 
     analysisToken++;
 
+    // Remove uploaded ECG image preview if present.
+    const imagePreview =
+      document.getElementById(
+        "ecgImagePreview"
+      );
+
+    if (imagePreview) {
+      imagePreview.remove();
+    }
+
+    els.waveform.style.display =
+      "";
+
+
+
     clearError();
 
     els.statusPill.textContent =
@@ -1627,7 +1642,7 @@
       "No ECG analyzed";
 
     els.resultText.textContent =
-      "Upload a file or load the demo ECG to begin.";
+      "Upload a CSV ECG or an ECG image, or load the demo ECG to begin.";
 
     els.modelStatus.textContent =
       "Frontend waiting";
@@ -1663,84 +1678,461 @@
 
     clearError();
 
-    if (
-      !file.name
-        .toLowerCase()
-        .endsWith(".csv")
-    ) {
+    if (!file || !file.name) {
+      showError("No ECG file was selected.");
+      return;
+    }
 
+    if (file.size === 0) {
+      showError("The selected ECG file is empty.");
+      return;
+    }
+
+    // Keep uploaded files reasonably small for the prototype.
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
+    if (file.size > MAX_FILE_SIZE) {
       showError(
-        "Please select a CSV ECG file (.csv)."
+        "The selected file is too large. Please use a file smaller than 10 MB."
+      );
+      return;
+    }
+
+    const filename =
+      file.name.toLowerCase();
+
+    const isCsv =
+      filename.endsWith(".csv");
+
+    const isImage =
+      filename.endsWith(".jpg") ||
+      filename.endsWith(".jpeg") ||
+      filename.endsWith(".png");
+
+    if (!isCsv && !isImage) {
+      showError(
+        "Unsupported file type. Please select an ECG CSV, JPG, JPEG or PNG file."
+      );
+      return;
+    }
+
+    // =======================================================
+    // CSV
+    // =======================================================
+
+    if (isCsv) {
+
+      els.statusPill.textContent =
+        "Reading ECG CSV...";
+
+      els.statusPill.className =
+        "pill neutral";
+
+      const reader =
+        new FileReader();
+
+      reader.onload =
+        () => {
+
+          try {
+
+            const parsed =
+              parseCsv(
+                reader.result
+              );
+
+            loadSignal(
+              parsed,
+              {
+                filename:
+                  file.name,
+
+                demo:
+                  false
+              }
+            );
+
+          } catch (error) {
+
+            console.error(
+              "CSV error:",
+              error
+            );
+
+            showError(
+              error.message ||
+              "The ECG CSV could not be processed."
+            );
+
+            els.statusPill.textContent =
+              "Invalid ECG";
+
+            els.statusPill.className =
+              "pill neutral";
+          }
+        };
+
+      reader.onerror =
+        () => {
+
+          showError(
+            "The ECG CSV file could not be read."
+          );
+        };
+
+      reader.readAsText(
+        file
       );
 
       return;
     }
 
-    if (
-      file.size === 0
-    ) {
+    // =======================================================
+    // ECG IMAGE
+    // =======================================================
 
-      showError(
-        "The selected ECG file is empty."
-      );
+    loadEcgImage(file);
+  }
 
-      return;
-    }
+  // =========================================================
+  // ECG IMAGE UPLOAD
+  // =========================================================
+
+  async function loadEcgImage(file) {
+
+    clearError();
+
+    signal = null;
+    analysisToken++;
 
     els.statusPill.textContent =
-      "Reading ECG...";
+      "Processing ECG image...";
 
     els.statusPill.className =
       "pill neutral";
 
-    const reader =
-      new FileReader();
+    els.filename.textContent =
+      file.name;
 
-    reader.onload =
+    els.samples.textContent =
+      "Processing...";
+
+    els.duration.textContent =
+      "Not available";
+
+    els.samplingRate.textContent =
+      "Not determinable";
+
+    els.fMean.textContent = "—";
+    els.fStd.textContent = "—";
+    els.fMin.textContent = "—";
+    els.fMax.textContent = "—";
+    els.fRange.textContent = "—";
+    els.fRms.textContent = "—";
+    els.fPeaks.textContent = "—";
+    els.fHr.textContent = "—";
+
+    setQuality(
+      "neutral",
+      "Signal quality: image-derived waveform"
+    );
+
+    els.demoTag.classList.add(
+      "hidden"
+    );
+
+    els.waveNote.textContent =
+      "Uploaded ECG image • waveform estimated from image for research prototype screening";
+
+    els.resultBadge.textContent =
+      "PROCESSING IMAGE";
+
+    els.resultBadge.className =
+      "tag neutral";
+
+    els.resultTitle.textContent =
+      "Processing ECG image...";
+
+    els.resultText.textContent =
+      "The ECG image is being processed by the screening backend. Sampling rate and duration are not inferred from the image.";
+
+    els.modelStatus.textContent =
+      "Image processing • connecting to Random Forest";
+
+    els.plotEmpty.classList.add(
+      "hidden"
+    );
+
+    els.waveform.style.display =
+      "none";
+
+    // --------------------------------------------------
+    // Display uploaded image
+    // --------------------------------------------------
+
+    const oldImage =
+      document.getElementById(
+        "ecgImagePreview"
+      );
+
+    if (oldImage) {
+      oldImage.remove();
+    }
+
+    const container =
+      els.waveform.parentElement;
+
+    const image =
+      document.createElement("img");
+
+    image.id =
+      "ecgImagePreview";
+
+    image.alt =
+      "Uploaded ECG image: " +
+      file.name;
+
+    image.style.width =
+      "100%";
+
+    image.style.height =
+      "auto";
+
+    image.style.maxHeight =
+      "600px";
+
+    image.style.objectFit =
+      "contain";
+
+    image.style.display =
+      "block";
+
+    image.style.borderRadius =
+      "10px";
+
+    image.style.background =
+      "#071923";
+
+    image.style.padding =
+      "8px";
+
+    const objectUrl =
+      URL.createObjectURL(file);
+
+    image.onload =
       () => {
-
-        try {
-
-          const parsed =
-            parseCsv(
-              reader.result
-            );
-
-          loadSignal(
-            parsed,
-            {
-              filename:
-                file.name,
-
-              demo:
-                false
-            }
-          );
-
-        } catch (error) {
-
-          console.error(
-            "CSV error:",
-            error
-          );
-
-          showError(
-            error.message
-          );
-        }
-      };
-
-    reader.onerror =
-      () => {
-
-        showError(
-          "The ECG CSV file could not be read."
+        URL.revokeObjectURL(
+          objectUrl
         );
       };
 
-    reader.readAsText(
-      file
+    image.onerror =
+      () => {
+        URL.revokeObjectURL(
+          objectUrl
+        );
+
+        image.remove();
+
+        els.statusPill.textContent =
+          "Invalid image";
+
+        els.statusPill.className =
+          "pill neutral";
+
+        showError(
+          "The selected file could not be opened as a valid JPG, JPEG or PNG image."
+        );
+      };
+
+    image.src =
+      objectUrl;
+
+    container.appendChild(
+      image
     );
+
+    // --------------------------------------------------
+    // Send image to FastAPI
+    // --------------------------------------------------
+
+    try {
+
+      const formData =
+        new FormData();
+
+      formData.append(
+        "file",
+        file
+      );
+
+      const response =
+        await fetch(
+          `${API_BASE}/api/analyze-image`,
+          {
+            method: "POST",
+            body: formData
+          }
+        );
+
+      let data;
+
+      try {
+        data =
+          await response.json();
+
+      } catch (jsonError) {
+
+        throw new Error(
+          `Server returned an invalid response (HTTP ${response.status}).`
+        );
+      }
+
+      if (!response.ok) {
+
+        throw new Error(
+          data.detail ||
+          `Image screening failed (HTTP ${response.status}).`
+        );
+      }
+
+      // ------------------------------------------------
+      // Backend processing succeeded
+      // ------------------------------------------------
+
+      els.statusPill.textContent =
+        "ECG image analyzed";
+
+      els.statusPill.className =
+        "pill ok";
+
+      els.samples.textContent =
+        data.samples_used
+          ? `${data.samples_used} generated`
+          : "Not available";
+
+      els.duration.textContent =
+        "Not available";
+
+      els.samplingRate.textContent =
+        "Not determinable";
+
+      els.modelStatus.textContent =
+        "Random Forest • image-derived ECG screening";
+
+      // ------------------------------------------------
+      // Result
+      // ------------------------------------------------
+
+      if (
+        data.screening_result ===
+        "NORMAL"
+      ) {
+
+        els.resultBadge.textContent =
+          "NORMAL";
+
+        els.resultBadge.className =
+          "tag ok";
+
+        els.resultTitle.textContent =
+          "Screening result: Normal";
+
+      } else if (
+        data.screening_result ===
+        "ABNORMAL"
+      ) {
+
+        els.resultBadge.textContent =
+          "ABNORMAL";
+
+        els.resultBadge.className =
+          "tag warn";
+
+        els.resultTitle.textContent =
+          "Screening result: Abnormal";
+
+      } else {
+
+        els.resultBadge.textContent =
+          "UNKNOWN";
+
+        els.resultBadge.className =
+          "tag neutral";
+
+        els.resultTitle.textContent =
+          "Screening result unavailable";
+      }
+
+      // ------------------------------------------------
+      // Probabilities
+      // ------------------------------------------------
+
+      let probabilityText =
+        "";
+
+      if (
+        data.probabilities
+      ) {
+
+        const parts =
+          Object.entries(
+            data.probabilities
+          ).map(
+            ([name, probability]) =>
+              `${name}: ${(Number(probability) * 100).toFixed(1)}%`
+          );
+
+        if (parts.length) {
+
+          probabilityText =
+            ` Probabilities: ${parts.join(" • ")}`;
+        }
+      }
+
+      els.resultText.textContent =
+        `${data.prediction || "Result unavailable"} screening classification from the uploaded ECG image.${probabilityText} This is an image-derived research prototype result, not a clinical diagnosis.`;
+
+      setQuality(
+        "ok",
+        "Signal quality: image-derived waveform processed"
+      );
+
+    } catch (error) {
+
+      console.error(
+        "ECG image analysis error:",
+        error
+      );
+
+      els.statusPill.textContent =
+        "Image loaded";
+
+      els.statusPill.className =
+        "pill neutral";
+
+      els.samples.textContent =
+        "Not available";
+
+      els.resultBadge.textContent =
+        "IMAGE LOADED";
+
+      els.resultBadge.className =
+        "tag neutral";
+
+      els.resultTitle.textContent =
+        "ECG image loaded";
+
+      els.resultText.textContent =
+        "The ECG image was loaded, but backend image screening could not be completed.";
+
+      els.modelStatus.textContent =
+        "Image loaded • backend screening unavailable";
+
+      showError(
+        `ECG image analysis failed: ${error.message}`
+      );
+    }
   }
 
   // =========================================================

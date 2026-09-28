@@ -42,7 +42,7 @@
       <div class="section-head">
         <div>
           <h3>1. ECG Data Input</h3>
-          <p>Supported CSV formats: <code>time,amplitude</code> or a single <code>amplitude</code> column.</p>
+          <p>Supported ECG files: CSV data or JPG/JPEG/PNG ECG images.</p>
         </div>
         <div class="actions">
           <button id="demoBtn" class="secondary">Try Demo ECG</button>
@@ -51,10 +51,10 @@
       </div>
 
       <label id="dropzone" class="dropzone" tabindex="0">
-        <input id="fileInput" type="file" accept=".csv,text/csv" hidden>
+        <input id="fileInput" type="file" accept=".csv,.jpg,.jpeg,.png,text/csv,image/jpeg,image/png" hidden>
         <div class="upload-icon">↥</div>
-        <strong>Drop an ECG CSV here</strong>
-        <span>or tap to choose a file</span>
+        <strong>Drop an ECG CSV or ECG image here</strong>
+        <span>CSV, JPG, JPEG or PNG • or tap to choose a file</span>
       </label>
 
       <div id="message" class="message hidden"></div>
