@@ -352,34 +352,35 @@
         );
       }
 
-      const meanInterval =
-        intervals.reduce(
-          (sum, value) =>
-            sum + value,
-          0
-        ) /
-        intervals.length;
-
-      const maxDeviation =
-        Math.max(
-          ...intervals.map(
-            (value) =>
-              Math.abs(
-                value -
-                meanInterval
-              ) /
-              meanInterval
-          )
+      // Use the median interval so small CSV
+      // rounding differences do not make the
+      // sampling rate appear unavailable.
+      const sortedIntervals =
+        [...intervals].sort(
+          (a, b) => a - b
         );
 
+      const middle =
+        Math.floor(
+          sortedIntervals.length / 2
+        );
+
+      const medianInterval =
+        sortedIntervals.length % 2
+          ? sortedIntervals[middle]
+          : (
+              sortedIntervals[middle - 1] +
+              sortedIntervals[middle]
+            ) / 2;
+
       if (
-        meanInterval > 0 &&
-        maxDeviation <= 0.001
+        medianInterval > 0 &&
+        Number.isFinite(medianInterval)
       ) {
 
         samplingRate =
           1 /
-          meanInterval;
+          medianInterval;
       }
     }
 
