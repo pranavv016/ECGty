@@ -1,15 +1,15 @@
 {
-  "model": "Random Forest",
-  "n_estimators": 150,
+  "model_type": "Random Forest",
+  "task": "Binary ECG screening",
   "classes": {
     "0": "Normal",
-    "1": "Supraventricular",
-    "2": "Ventricular",
-    "3": "Fusion",
-    "4": "Unknown"
+    "1": "Abnormal"
   },
-  "input_samples_per_beat": 187,
-  "test_accuracy": 0.9731396464300397,
-  "macro_f1": 0.86,
-  "note": "Educational/research screening prototype. Not a clinical diagnostic device."
+  "input_samples": 187,
+  "dataset": "PTBDB",
+  "training_samples": 11641,
+  "test_samples": 2911,
+  "test_accuracy": 0.9687392648574373,
+  "clinical_diagnosis": false,
+  "prototype_note": "Educational/research ECG screening prototype. Not a clinical diagnostic device."
 }
