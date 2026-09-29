@@ -758,7 +758,7 @@
       "Running ECG screening model...";
 
     els.resultText.textContent =
-      "Sending the ECG signal to the FastAPI Random Forest model.";
+      "Sending the ECG signal to the FastAPI Improved 1D CNN model.";
 
     els.modelStatus.textContent =
       "Connecting to FastAPI...";
@@ -843,7 +843,7 @@
           "Normal screening pattern";
 
         els.resultText.textContent =
-          "The connected Random Forest model classified " +
+          "The connected Improved 1D CNN model classified " +
           "this ECG heartbeat as Normal. " +
           "This is an educational/research screening result, " +
           "not a clinical diagnosis.";
@@ -860,7 +860,7 @@
           "Abnormal / non-normal screening pattern";
 
         els.resultText.textContent =
-          "The connected Random Forest model classified " +
+          "The connected Improved 1D CNN model classified " +
           `this ECG heartbeat as ${prediction}. ` +
           "For this prototype, it is displayed as " +
           "ABNORMAL / NON-NORMAL. " +
@@ -910,7 +910,7 @@
       }
 
       els.modelStatus.textContent =
-        "FastAPI connected • Random Forest model loaded";
+        "FastAPI connected • Improved 1D CNN model loaded";
 
       console.log(
         "ECG prediction:",
@@ -1857,7 +1857,7 @@
       "The ECG image is being processed by the screening backend. Sampling rate and duration are not inferred from the image.";
 
     els.modelStatus.textContent =
-      "Image processing • connecting to Random Forest";
+      "Image processing • connecting to Improved 1D CNN";
 
     els.plotEmpty.classList.add(
       "hidden"
@@ -2018,7 +2018,7 @@
         "Not determinable";
 
       els.modelStatus.textContent =
-        "Random Forest • image-derived ECG screening";
+        "Improved 1D CNN • image-derived ECG screening";
 
       // ------------------------------------------------
       // Result
