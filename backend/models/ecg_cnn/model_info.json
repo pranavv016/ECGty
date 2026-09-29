@@ -1,0 +1,45 @@
+{
+    "project": "AI-Assisted ECG Screening System",
+    "purpose": "Educational/research ECG screening prototype",
+    "clinical_status": "NOT a clinical diagnostic device",
+    "dataset": "MIT-BIH Arrhythmia Database",
+    "input": {
+        "type": "ECG beat segment",
+        "samples": 187,
+        "channels": 1
+    },
+    "labels": {
+        "0": "Normal",
+        "1": "Abnormal"
+    },
+    "model": {
+        "architecture": "Improved 1D CNN",
+        "parameters": 54017
+    },
+    "preprocessing": {
+        "normalization": "Training-set mean and standard deviation",
+        "normalization_file": "normalization.npz"
+    },
+    "decision": {
+        "threshold": 0.7,
+        "threshold_selection": "Selected using validation set F1 score",
+        "test_set_used_for_threshold_selection": false
+    },
+    "validation_threshold_metrics": {
+        "accuracy": 0.9709,
+        "sensitivity": 0.8325,
+        "specificity": 0.9894,
+        "precision": 0.9125,
+        "f1": 0.8707
+    },
+    "test_evaluation_at_threshold_0_50": {
+        "accuracy": 0.7859,
+        "sensitivity": 0.8306,
+        "specificity": 0.7801,
+        "precision": 0.3264,
+        "f1": 0.4686,
+        "roc_auc": 0.8579,
+        "pr_auc": 0.5688
+    },
+    "warning": "This system is an educational/research screening prototype and must not be used for clinical diagnosis or medical decisions."
+}

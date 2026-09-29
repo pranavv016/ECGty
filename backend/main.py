@@ -5,28 +5,29 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from pathlib import Path
 import io
+import json
 
 import numpy as np
-import joblib
+from tensorflow.keras.models import load_model
 from PIL import Image, ImageOps, ImageFilter
 
 
-# --------------------------------------------------
-# Paths
-# --------------------------------------------------
+# ============================================================
+# PATHS
+# ============================================================
 
 BASE_DIR = Path(__file__).resolve().parent
 
-MODEL_PATH = (
-    BASE_DIR
-    / "models"
-    / "ecg_binary_random_forest.joblib"
-)
+CNN_DIR = BASE_DIR / "models" / "ecg_cnn"
+
+MODEL_PATH = CNN_DIR / "best_ecg_cnn_improved.keras"
+NORMALIZATION_PATH = CNN_DIR / "normalization.npz"
+MODEL_INFO_PATH = CNN_DIR / "model_info.json"
 
 
-# --------------------------------------------------
-# Model configuration
-# --------------------------------------------------
+# ============================================================
+# MODEL CONFIGURATION
+# ============================================================
 
 CLASS_NAMES = {
     0: "Normal",
@@ -35,33 +36,53 @@ CLASS_NAMES = {
 
 INPUT_SAMPLES = 187
 
+# Locked using validation data only.
+DECISION_THRESHOLD = 0.70
+
 model = None
 MODEL_LOADED = False
 MODEL_ERROR = None
 
+TRAIN_MEAN = None
+TRAIN_STD = None
 
-# --------------------------------------------------
-# Load model
-# --------------------------------------------------
+
+# ============================================================
+# LOAD CNN MODEL
+# ============================================================
 
 try:
-    print(f"Loading ECG model from: {MODEL_PATH}")
+    print(f"Loading ECG CNN model from: {MODEL_PATH}")
 
-    model = joblib.load(MODEL_PATH)
+    model = load_model(MODEL_PATH)
+
+    print("ECG CNN model loaded successfully.")
+
+    # Load training normalization parameters.
+    norm_data = np.load(NORMALIZATION_PATH)
+
+    TRAIN_MEAN = float(norm_data["mean"])
+    TRAIN_STD = float(norm_data["std"])
+
+    if not np.isfinite(TRAIN_MEAN):
+        raise ValueError("Training mean is invalid.")
+
+    if not np.isfinite(TRAIN_STD) or TRAIN_STD <= 0:
+        raise ValueError("Training standard deviation is invalid.")
+
+    print(f"Training mean: {TRAIN_MEAN:.6f}")
+    print(f"Training std : {TRAIN_STD:.6f}")
 
     MODEL_LOADED = True
 
-    print("ECG binary model loaded successfully.")
-    print("Model classes:", getattr(model, "classes_", "unknown"))
-
 except Exception as exc:
     MODEL_ERROR = str(exc)
-    print("Model loading failed:", MODEL_ERROR)
+    print("CNN model loading failed:", MODEL_ERROR)
 
 
-# --------------------------------------------------
-# FastAPI
-# --------------------------------------------------
+# ============================================================
+# FASTAPI
+# ============================================================
 
 app = FastAPI(
     title="AI-Assisted ECG Screening API",
@@ -69,13 +90,13 @@ app = FastAPI(
         "Educational/research ECG screening prototype. "
         "Not a clinical diagnostic device."
     ),
-    version="2.1",
+    version="3.0",
 )
 
 
-# --------------------------------------------------
+# ============================================================
 # CORS
-# --------------------------------------------------
+# ============================================================
 
 app.add_middleware(
     CORSMiddleware,
@@ -86,26 +107,30 @@ app.add_middleware(
 )
 
 
-# --------------------------------------------------
-# Request model for CSV
-# --------------------------------------------------
+# ============================================================
+# REQUEST MODEL
+# ============================================================
 
 class ECGRequest(BaseModel):
     samples: List[float] = Field(..., min_length=187)
     filename: Optional[str] = None
 
 
-# --------------------------------------------------
-# Root
-# --------------------------------------------------
+# ============================================================
+# ROOT
+# ============================================================
 
 @app.get("/")
 def root():
+
     return {
         "service": "AI-Assisted ECG Screening API",
         "status": "running",
         "model_loaded": MODEL_LOADED,
-        "model_type": "Random Forest",
+        "model_type": "Improved 1D CNN",
+        "model_parameters": 54017,
+        "decision_threshold": DECISION_THRESHOLD,
+        "input_samples_per_heartbeat": INPUT_SAMPLES,
         "classes": CLASS_NAMES,
         "image_upload": True,
         "clinical_diagnosis": False,
@@ -116,9 +141,9 @@ def root():
     }
 
 
-# --------------------------------------------------
-# Health
-# --------------------------------------------------
+# ============================================================
+# HEALTH
+# ============================================================
 
 @app.get("/api/health")
 def health():
@@ -126,10 +151,15 @@ def health():
     response = {
         "status": "ok",
         "model_loaded": MODEL_LOADED,
-        "model": "Random Forest",
-        "model_file": "ecg_binary_random_forest.joblib",
+        "model": "Improved 1D CNN",
+        "model_file": "best_ecg_cnn_improved.keras",
+        "model_parameters": 54017,
         "input_samples_per_heartbeat": INPUT_SAMPLES,
+        "decision_threshold": DECISION_THRESHOLD,
         "classes": CLASS_NAMES,
+        "normalization_loaded": (
+            TRAIN_MEAN is not None and TRAIN_STD is not None
+        ),
         "image_upload": True,
         "clinical_diagnosis": False,
         "message": (
@@ -144,39 +174,23 @@ def health():
     return response
 
 
-# --------------------------------------------------
-# Existing CSV prediction
-# --------------------------------------------------
+# ============================================================
+# PREPROCESS ECG
+# ============================================================
 
-@app.post("/api/predict")
-def predict_ecg(request: ECGRequest):
+def preprocess_ecg(samples):
 
-    if not MODEL_LOADED or model is None:
-        raise HTTPException(
-            status_code=503,
-            detail="ECG model is not loaded on the server.",
-        )
-
-    try:
-        samples = np.asarray(
-            request.samples,
-            dtype=np.float64
-        )
-
-    except (TypeError, ValueError):
-
-        raise HTTPException(
-            status_code=400,
-            detail="ECG samples must be numeric values.",
-        )
+    samples = np.asarray(
+        samples,
+        dtype=np.float64
+    )
 
     if samples.size < INPUT_SAMPLES:
 
         raise HTTPException(
             status_code=400,
             detail=(
-                f"At least {INPUT_SAMPLES} "
-                "ECG samples are required."
+                f"At least {INPUT_SAMPLES} ECG samples are required."
             ),
         )
 
@@ -187,40 +201,90 @@ def predict_ecg(request: ECGRequest):
             detail="ECG contains invalid numeric values.",
         )
 
+    # Use the first 187 samples, matching the current
+    # training pipeline.
     heartbeat = samples[:INPUT_SAMPLES]
 
-    X = heartbeat.reshape(1, INPUT_SAMPLES)
+    # Apply ONLY the normalization calculated from training data.
+    normalized = (
+        heartbeat - TRAIN_MEAN
+    ) / TRAIN_STD
+
+    if not np.all(np.isfinite(normalized)):
+
+        raise HTTPException(
+            status_code=422,
+            detail="ECG preprocessing produced invalid values.",
+        )
+
+    # CNN expects: (batch, samples, channel)
+    X = normalized.reshape(
+        1,
+        INPUT_SAMPLES,
+        1
+    ).astype(np.float32)
+
+    return X
+
+
+# ============================================================
+# CNN PREDICTION
+# ============================================================
+
+def predict_with_cnn(X):
+
+    if not MODEL_LOADED or model is None:
+
+        raise HTTPException(
+            status_code=503,
+            detail="ECG CNN model is not loaded on the server.",
+        )
 
     try:
-        prediction = int(
-            model.predict(X)[0]
+
+        probability = float(
+            model.predict(
+                X,
+                verbose=0
+            ).ravel()[0]
         )
 
     except Exception as exc:
 
         raise HTTPException(
             status_code=500,
-            detail=f"Model prediction failed: {exc}",
+            detail=f"CNN prediction failed: {exc}",
         )
 
-    return build_prediction_result(
-        prediction=prediction,
-        X=X,
-        samples_received=int(samples.size),
-        samples_used=INPUT_SAMPLES,
-        filename=request.filename,
-        screening_type="Binary ECG screening",
-        image_derived=False,
+    if not np.isfinite(probability):
+
+        raise HTTPException(
+            status_code=500,
+            detail="CNN returned an invalid prediction.",
+        )
+
+    probability = float(
+        np.clip(
+            probability,
+            0.0,
+            1.0
+        )
     )
 
+    prediction = int(
+        probability >= DECISION_THRESHOLD
+    )
 
-# --------------------------------------------------
-# Prediction result helper
-# --------------------------------------------------
+    return prediction, probability
+
+
+# ============================================================
+# PREDICTION RESULT
+# ============================================================
 
 def build_prediction_result(
     prediction,
-    X,
+    probability,
     samples_received,
     samples_used,
     filename,
@@ -233,6 +297,9 @@ def build_prediction_result(
         "Unknown"
     )
 
+    normal_probability = 1.0 - probability
+    abnormal_probability = probability
+
     result = {
 
         "prediction_class": prediction,
@@ -244,6 +311,18 @@ def build_prediction_result(
             if prediction == 0
             else "ABNORMAL"
         ),
+
+        "abnormal_probability": round(
+            abnormal_probability,
+            4
+        ),
+
+        "normal_probability": round(
+            normal_probability,
+            4
+        ),
+
+        "decision_threshold": DECISION_THRESHOLD,
 
         "samples_received": samples_received,
 
@@ -264,6 +343,7 @@ def build_prediction_result(
     }
 
     if image_derived:
+
         result["prototype_note"] = (
             "Educational/research prototype. "
             "The waveform was estimated from the uploaded ECG image "
@@ -271,47 +351,65 @@ def build_prediction_result(
             "This output is not a clinical diagnosis."
         )
 
-    if hasattr(model, "predict_proba"):
-
-        try:
-
-            probabilities = model.predict_proba(X)[0]
-
-            result["probabilities"] = {
-
-                CLASS_NAMES.get(
-                    int(cls),
-                    str(cls)
-                ): round(
-                    float(prob),
-                    4
-                )
-
-                for cls, prob in zip(
-                    model.classes_,
-                    probabilities
-                )
-            }
-
-        except Exception:
-            pass
-
     return result
 
 
-# --------------------------------------------------
-# ECG image waveform extraction
-# --------------------------------------------------
+# ============================================================
+# CSV / DIGITAL ECG PREDICTION
+# ============================================================
+
+@app.post("/api/predict")
+def predict_ecg(request: ECGRequest):
+
+    if not MODEL_LOADED:
+
+        raise HTTPException(
+            status_code=503,
+            detail="ECG CNN model is not loaded on the server.",
+        )
+
+    try:
+
+        samples = np.asarray(
+            request.samples,
+            dtype=np.float64
+        )
+
+    except (TypeError, ValueError):
+
+        raise HTTPException(
+            status_code=400,
+            detail="ECG samples must be numeric values.",
+        )
+
+    X = preprocess_ecg(samples)
+
+    prediction, probability = predict_with_cnn(X)
+
+    return build_prediction_result(
+        prediction=prediction,
+        probability=probability,
+        samples_received=int(samples.size),
+        samples_used=INPUT_SAMPLES,
+        filename=request.filename,
+        screening_type="Binary ECG screening",
+        image_derived=False,
+    )
+
+
+# ============================================================
+# ECG IMAGE WAVEFORM EXTRACTION
+# ============================================================
 
 def extract_waveform_from_image(image_bytes):
 
     try:
+
         image = Image.open(
             io.BytesIO(image_bytes)
         )
 
         image = ImageOps.exif_transpose(image)
-
         image = image.convert("L")
 
     except Exception as exc:
@@ -333,7 +431,6 @@ def extract_waveform_from_image(image_bytes):
             ),
         )
 
-    # Limit processing dimensions to keep the API lightweight.
     max_width = 1600
 
     if width > max_width:
@@ -348,9 +445,10 @@ def extract_waveform_from_image(image_bytes):
 
         width, height = image.size
 
-    # Slight smoothing reduces isolated pixels/noise.
     image = image.filter(
-        ImageFilter.GaussianBlur(radius=0.5)
+        ImageFilter.GaussianBlur(
+            radius=0.5
+        )
     )
 
     arr = np.asarray(
@@ -358,29 +456,40 @@ def extract_waveform_from_image(image_bytes):
         dtype=np.float32
     )
 
-    # Dark ECG traces have lower grayscale values.
     darkness = 255.0 - arr
 
-    # Ignore a small border because ECG images often contain
-    # labels, margins, and other non-waveform content there.
-    x0 = max(0, int(width * 0.03))
-    x1 = min(width, int(width * 0.97))
+    x0 = max(
+        0,
+        int(width * 0.03)
+    )
 
-    y0 = max(0, int(height * 0.08))
-    y1 = min(height, int(height * 0.92))
+    x1 = min(
+        width,
+        int(width * 0.97)
+    )
 
-    cropped = darkness[y0:y1, x0:x1]
+    y0 = max(
+        0,
+        int(height * 0.08)
+    )
+
+    y1 = min(
+        height,
+        int(height * 0.92)
+    )
+
+    cropped = darkness[
+        y0:y1,
+        x0:x1
+    ]
 
     if cropped.size == 0:
+
         raise HTTPException(
             status_code=400,
             detail="Could not locate usable image content."
         )
 
-    # Estimate the waveform position column by column.
-    #
-    # A small amount of darkness is ignored so that a bright
-    # background does not dominate the calculation.
     threshold = np.percentile(
         cropped,
         80
@@ -388,18 +497,29 @@ def extract_waveform_from_image(image_bytes):
 
     positions = []
 
-    for column in range(cropped.shape[1]):
+    for column in range(
+        cropped.shape[1]
+    ):
 
-        weights = cropped[:, column].copy()
+        weights = cropped[
+            :,
+            column
+        ].copy()
 
-        weights[weights < threshold] = 0
+        weights[
+            weights < threshold
+        ] = 0
 
         total = float(
             np.sum(weights)
         )
 
         if total <= 0:
-            positions.append(np.nan)
+
+            positions.append(
+                np.nan
+            )
+
             continue
 
         rows = np.arange(
@@ -408,19 +528,29 @@ def extract_waveform_from_image(image_bytes):
         )
 
         center = float(
-            np.sum(rows * weights) / total
+            np.sum(
+                rows * weights
+            )
+            / total
         )
 
-        positions.append(center)
+        positions.append(
+            center
+        )
 
     positions = np.asarray(
         positions,
         dtype=np.float32
     )
 
-    valid = np.isfinite(positions)
+    valid = np.isfinite(
+        positions
+    )
 
-    if np.sum(valid) < max(50, int(positions.size * 0.25)):
+    if np.sum(valid) < max(
+        50,
+        int(positions.size * 0.25)
+    ):
 
         raise HTTPException(
             status_code=422,
@@ -431,7 +561,6 @@ def extract_waveform_from_image(image_bytes):
             ),
         )
 
-    # Fill missing columns by interpolation.
     indices = np.arange(
         positions.size
     )
@@ -442,7 +571,6 @@ def extract_waveform_from_image(image_bytes):
         positions[valid]
     )
 
-    # Remove slow baseline drift.
     baseline = np.median(
         positions
     )
@@ -451,15 +579,20 @@ def extract_waveform_from_image(image_bytes):
         baseline - positions
     )
 
-    # Normalize.
-    signal = signal - np.mean(signal)
+    signal = (
+        signal - np.mean(signal)
+    )
 
-    std = np.std(signal)
+    std = np.std(
+        signal
+    )
 
     if std > 1e-8:
-        signal = signal / std
 
-    # Resample to the model's expected 187 values.
+        signal = (
+            signal / std
+        )
+
     source_x = np.linspace(
         0,
         1,
@@ -486,31 +619,38 @@ def extract_waveform_from_image(image_bytes):
     if not np.all(
         np.isfinite(waveform)
     ):
+
         raise HTTPException(
             status_code=422,
-            detail="The ECG waveform could not be extracted from the image."
+            detail=(
+                "The ECG waveform could not "
+                "be extracted from the image."
+            ),
         )
 
     return waveform
 
 
-# --------------------------------------------------
-# ECG image upload and screening
-# --------------------------------------------------
+# ============================================================
+# ECG IMAGE SCREENING
+# ============================================================
 
 @app.post("/api/analyze-image")
 async def analyze_ecg_image(
     file: UploadFile = File(...)
 ):
 
-    if not MODEL_LOADED or model is None:
+    if not MODEL_LOADED:
 
         raise HTTPException(
             status_code=503,
-            detail="ECG model is not loaded on the server.",
+            detail="ECG CNN model is not loaded on the server.",
         )
 
-    filename = file.filename or "uploaded_ecg_image"
+    filename = (
+        file.filename
+        or "uploaded_ecg_image"
+    )
 
     extension = Path(
         filename
@@ -541,39 +681,31 @@ async def analyze_ecg_image(
             detail="The uploaded ECG image is empty.",
         )
 
-    # 10 MB safety limit.
     if len(image_bytes) > 10 * 1024 * 1024:
 
         raise HTTPException(
             status_code=400,
-            detail="The ECG image is too large. Maximum size is 10 MB.",
+            detail=(
+                "The ECG image is too large. "
+                "Maximum size is 10 MB."
+            ),
         )
 
     waveform = extract_waveform_from_image(
         image_bytes
     )
 
-    X = waveform.reshape(
-        1,
-        INPUT_SAMPLES
+    X = preprocess_ecg(
+        waveform
     )
 
-    try:
-
-        prediction = int(
-            model.predict(X)[0]
-        )
-
-    except Exception as exc:
-
-        raise HTTPException(
-            status_code=500,
-            detail=f"Image ECG screening failed: {exc}",
-        )
+    prediction, probability = predict_with_cnn(
+        X
+    )
 
     result = build_prediction_result(
         prediction=prediction,
-        X=X,
+        probability=probability,
         samples_received=INPUT_SAMPLES,
         samples_used=INPUT_SAMPLES,
         filename=filename,
@@ -582,10 +714,15 @@ async def analyze_ecg_image(
     )
 
     result["image_processing"] = {
+
         "status": "completed",
+
         "waveform_samples_generated": INPUT_SAMPLES,
+
         "sampling_rate": None,
+
         "duration": None,
+
         "note": (
             "Sampling rate and duration are not inferred from the image."
         ),
