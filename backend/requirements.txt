@@ -6,3 +6,4 @@ joblib
 pandas
 scipy
 Pillow
+python-multipart
